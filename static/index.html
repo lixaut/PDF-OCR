@@ -315,6 +315,14 @@
     return "，预计剩余约 " + m + " 分钟";
   }
 
+  function fmtElapsed(sec) {
+    if (sec === null || sec === undefined || sec <= 0) return "";
+    if (sec < 60) return sec + " 秒";
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return m + " 分钟 " + s + " 秒";
+  }
+
   function pollProcess(taskId) {
     processStage.style.display = "block";
     setProcessProgress(0, "排队中...");
@@ -325,16 +333,20 @@
         if (!resp.ok) throw new Error("HTTP " + resp.status);
         const data = await resp.json();
 
-        setProcessProgress(data.percent, (data.message || "") + fmtEta(data.eta_seconds));
-
         if (data.status === "done") {
           clearInterval(timer);
-          setProcessProgress(100, "✅ 处理完成，正在下载...");
+          setProcessProgress(100, "✅ 处理完成，共耗时 " + fmtElapsed(data.elapsed_seconds) + "，正在下载...");
           downloadResult(taskId);
         } else if (data.status === "error") {
           clearInterval(timer);
           setProcessProgress(100, "❌ " + data.message, "msg-error");
           convertBtn.disabled = false;
+        } else {
+          // 处理中：消息 + 已用时 + 预计剩余
+          setProcessProgress(
+            data.percent,
+            (data.message || "") + "，已用时 " + fmtElapsed(data.elapsed_seconds) + fmtEta(data.eta_seconds)
+          );
         }
       } catch (err) {
         clearInterval(timer);

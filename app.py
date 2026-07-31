@@ -85,6 +85,7 @@ def _run_task(task_id: str, src: Path, dst: Path, dpi: int, lang: str) -> None:
     """后台线程：执行转换并更新任务状态。"""
     task = TASKS[task_id]
     t_start = time.time()
+    task["started_at"] = t_start
     # 引擎就绪前（加载期）不计算 ETA：_last_page_ts 在"引擎就绪"回调时初始化
 
     def on_progress(pno, total, msg):
@@ -126,6 +127,7 @@ def _run_task(task_id: str, src: Path, dst: Path, dpi: int, lang: str) -> None:
         task["status"] = "done"
         task["percent"] = 100
         task["eta_seconds"] = 0
+        task["total_seconds"] = int(time.time() - task["started_at"])
         task["message"] = f"转换完成，共处理 {n} 页"
     except Exception as exc:  # noqa: BLE001
         task["status"] = "error"
@@ -177,11 +179,16 @@ def get_task_status(task_id: str) -> JSONResponse:
     task = TASKS.get(task_id)
     if task is None:
         raise HTTPException(status_code=404, detail="任务不存在（可能已过期或服务重启）")
+    # 实时耗时：处理中按 started_at 实时计算，完成后取 total_seconds
+    elapsed = task.get("total_seconds")
+    if task["status"] in ("processing", "queued") and task.get("started_at"):
+        elapsed = int(time.time() - task["started_at"])
     return JSONResponse(
         {
             "status": task["status"],
             "percent": task["percent"],
             "eta_seconds": task.get("eta_seconds"),
+            "elapsed_seconds": elapsed,
             "message": task["message"],
         }
     )
