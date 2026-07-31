@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📄</text></svg>">
+<title>PDF 可搜索化转换</title>
+<style>
+  :root {
+    --primary: #2563eb;
+    --primary-dark: #1d4ed8;
+    --bg: #f1f5f9;
+    --card: #ffffff;
+    --text: #1e293b;
+    --muted: #64748b;
+    --border: #e2e8f0;
+    --success: #16a34a;
+    --error: #dc2626;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 16px;
+  }
+  .container { width: 100%; max-width: 720px; }
+  h1 { font-size: 26px; text-align: center; margin-bottom: 8px; }
+  .subtitle {
+    text-align: center; color: var(--muted); font-size: 14px; margin-bottom: 28px;
+  }
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 32px;
+    box-shadow: 0 4px 24px rgba(15, 23, 42, .08);
+  }
+  /* 上传区 */
+  .dropzone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color .2s, background .2s;
+  }
+  .dropzone:hover, .dropzone.dragover {
+    border-color: var(--primary);
+    background: #eff6ff;
+  }
+  .dropzone .icon { font-size: 44px; margin-bottom: 12px; }
+  .dropzone p { color: var(--muted); font-size: 14px; }
+  .dropzone strong { color: var(--primary); }
+  .file-info {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-top: 16px; padding: 12px 16px;
+    background: #f8fafc; border: 1px solid var(--border); border-radius: 10px;
+    font-size: 14px;
+  }
+  .file-info .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-info .size { color: var(--muted); flex-shrink: 0; margin-left: 12px; }
+  /* 选项 */
+  .options {
+    display: flex; gap: 24px; margin-top: 20px; font-size: 14px; color: var(--muted);
+  }
+  .options label { display: flex; align-items: center; gap: 6px; }
+  .options select {
+    padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px;
+    background: #fff; color: var(--text);
+  }
+  /* 按钮 */
+  .btn {
+    width: 100%; margin-top: 20px; padding: 14px;
+    background: var(--primary); color: #fff; border: none; border-radius: 10px;
+    font-size: 16px; font-weight: 600; cursor: pointer; transition: background .2s;
+  }
+  .btn:hover:not(:disabled) { background: var(--primary-dark); }
+  .btn:disabled { background: #93c5fd; cursor: not-allowed; }
+  /* 进度条 */
+  .stage {
+    margin-top: 20px;
+    display: none;
+  }
+  .stage-title { font-size: 14px; color: var(--muted); margin-bottom: 8px; }
+  .stage-title .pct { font-weight: 600; color: var(--text); }
+  .progress {
+    width: 100%; height: 10px;
+    background: var(--border);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+  .progress > div {
+    height: 100%; width: 0%;
+    background: var(--primary);
+    border-radius: 5px;
+    transition: width .3s ease;
+  }
+  .stage.done .progress > div { background: var(--success); }
+  .stage.error .progress > div { background: var(--error); }
+  .status-text { margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .msg-success { color: var(--success); }
+  .msg-error { color: var(--error); }
+  .note {
+    margin-top: 24px; font-size: 12px; color: var(--muted); text-align: center;
+    line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>📄 PDF 可搜索化转换</h1>
+  <p class="subtitle">将扫描版 PDF（图片型、无法搜索）转换为可搜索的双层 PDF，视觉保持不变</p>
+
+  <div class="card">
+    <div class="dropzone" id="dropzone">
+      <div class="icon">📁</div>
+      <p><strong>点击选择</strong> 或 <strong>拖拽</strong> PDF 文件到此处</p>
+      <p>支持 .pdf，多页文档将逐页处理</p>
+    </div>
+    <input type="file" id="fileInput" accept=".pdf,application/pdf" hidden>
+
+    <div class="file-info" id="fileInfo" style="display:none;">
+      <span class="name" id="fileName"></span>
+      <span class="size" id="fileSize"></span>
+    </div>
+
+    <div class="options">
+      <label>识别精度
+        <select id="dpi">
+          <option value="150" selected>快速（150 DPI）</option>
+          <option value="200">标准（200 DPI）</option>
+          <option value="300">高（300 DPI）</option>
+        </select>
+      </label>
+      <label>语言
+        <select id="lang">
+          <option value="ch" selected>中文 / 英文</option>
+          <option value="en">英文</option>
+          <option value="japan">日文</option>
+          <option value="korean">韩文</option>
+        </select>
+      </label>
+    </div>
+
+    <button class="btn" id="convertBtn" disabled>开始转换</button>
+
+    <!-- 阶段一：上传进度 -->
+    <div class="stage" id="uploadStage">
+      <div class="stage-title">上传中 <span class="pct" id="uploadPct">0%</span></div>
+      <div class="progress"><div id="uploadBar"></div></div>
+      <div class="status-text" id="uploadText"></div>
+    </div>
+
+    <!-- 阶段二：处理进度 -->
+    <div class="stage" id="processStage">
+      <div class="stage-title">处理中 <span class="pct" id="processPct">0%</span></div>
+      <div class="progress"><div id="processBar"></div></div>
+      <div class="status-text" id="processText"></div>
+    </div>
+  </div>
+
+  <p class="note">
+    文件上传到服务器后在本机处理，处理完成后自动下载到本地，<br>
+    原页面外观、元数据与压缩方式均保持不变。
+  </p>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  const dropzone = document.getElementById("dropzone");
+  const fileInput = document.getElementById("fileInput");
+  const fileInfo = document.getElementById("fileInfo");
+  const fileNameEl = document.getElementById("fileName");
+  const fileSizeEl = document.getElementById("fileSize");
+  const convertBtn = document.getElementById("convertBtn");
+
+  const uploadStage = document.getElementById("uploadStage");
+  const uploadPct = document.getElementById("uploadPct");
+  const uploadBar = document.getElementById("uploadBar");
+  const uploadText = document.getElementById("uploadText");
+  const processStage = document.getElementById("processStage");
+  const processPct = document.getElementById("processPct");
+  const processBar = document.getElementById("processBar");
+  const processText = document.getElementById("processText");
+
+  let currentFile = null;
+
+  function fmtSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / 1024 / 1024).toFixed(1) + " MB";
+  }
+
+  function setFile(file) {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith(".pdf")) {
+      alert("仅支持 PDF 文件");
+      return;
+    }
+    currentFile = file;
+    fileNameEl.textContent = file.name;
+    fileSizeEl.textContent = fmtSize(file.size);
+    fileInfo.style.display = "flex";
+    convertBtn.disabled = false;
+    uploadStage.style.display = "none";
+    processStage.style.display = "none";
+  }
+
+  dropzone.addEventListener("click", () => fileInput.click());
+  dropzone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropzone.classList.add("dragover");
+  });
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("dragover"));
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("dragover");
+    setFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener("change", () => setFile(fileInput.files[0]));
+
+  // 平滑动画：从当前值缓动到目标值，避免进度条跳变
+  function animatePct(bar, pctEl, target, onDone) {
+    const from = parseFloat(bar.style.width) || 0;
+    const start = performance.now();
+    const dur = 700; // 700ms 缓动
+    function step(now) {
+      const t = Math.min(1, (now - start) / dur);
+      const eased = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
+      const val = Math.round(from + (target - from) * eased);
+      bar.style.width = val + "%";
+      pctEl.textContent = val + "%";
+      if (t < 1) requestAnimationFrame(step);
+      else if (onDone) onDone();
+    }
+    requestAnimationFrame(step);
+  }
+
+  function setUploadProgress(pct, text, cls) {
+    uploadText.textContent = text || "";
+    uploadText.className = "status-text" + (cls ? " " + cls : "");
+    uploadStage.className = "stage" + (pct >= 100 ? " done" : "") + (cls === "msg-error" ? " error" : "");
+    animatePct(uploadBar, uploadPct, pct);
+  }
+
+  function setProcessProgress(pct, text, cls) {
+    processText.textContent = text || "";
+    processText.className = "status-text" + (cls ? " " + cls : "");
+    processStage.className = "stage" + (pct >= 100 ? " done" : "") + (cls === "msg-error" ? " error" : "");
+    animatePct(processBar, processPct, pct);
+  }
+
+  convertBtn.addEventListener("click", () => {
+    if (!currentFile) return;
+    convertBtn.disabled = true;
+
+    // 上传阶段
+    uploadStage.style.display = "block";
+    processStage.style.display = "none";
+    setUploadProgress(0, "正在连接服务器...");
+
+    const form = new FormData();
+    form.append("file", currentFile);
+    form.append("dpi", document.getElementById("dpi").value);
+    form.append("lang", document.getElementById("lang").value);
+
+    // XHR：fetch 不支持上传进度，必须用 XMLHttpRequest
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api/convert");
+
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) {
+        const pct = Math.round((e.loaded / e.total) * 100);
+        setUploadProgress(pct, "");
+      }
+    };
+
+    xhr.onload = () => {
+      let resp;
+      try {
+        resp = JSON.parse(xhr.responseText);
+      } catch (_) {
+        setUploadProgress(100, "服务器响应异常（HTTP " + xhr.status + "）", "msg-error");
+        convertBtn.disabled = false;
+        return;
+      }
+      if (xhr.status !== 200 || !resp.task_id) {
+        const detail = resp.detail || ("HTTP " + xhr.status);
+        setUploadProgress(100, "上传失败：" + detail, "msg-error");
+        convertBtn.disabled = false;
+        return;
+      }
+      setUploadProgress(100, "✅ 上传成功，开始处理");
+      pollProcess(resp.task_id);
+    };
+
+    xhr.onerror = () => {
+      setUploadProgress(100, "网络错误，上传失败", "msg-error");
+      convertBtn.disabled = false;
+    };
+
+    xhr.send(form);
+  });
+
+  function fmtEta(sec) {
+    if (sec === null || sec === undefined) return "";
+    if (sec <= 0) return "";
+    // 统一按分钟显示，向上取整，不足 1 分钟显示 1 分钟
+    const m = Math.max(1, Math.ceil(sec / 60));
+    return "，预计剩余约 " + m + " 分钟";
+  }
+
+  function pollProcess(taskId) {
+    processStage.style.display = "block";
+    setProcessProgress(0, "排队中...");
+
+    const timer = setInterval(async () => {
+      try {
+        const resp = await fetch("/api/tasks/" + taskId);
+        if (!resp.ok) throw new Error("HTTP " + resp.status);
+        const data = await resp.json();
+
+        setProcessProgress(data.percent, (data.message || "") + fmtEta(data.eta_seconds));
+
+        if (data.status === "done") {
+          clearInterval(timer);
+          setProcessProgress(100, "✅ 处理完成，正在下载...");
+          downloadResult(taskId);
+        } else if (data.status === "error") {
+          clearInterval(timer);
+          setProcessProgress(100, "❌ " + data.message, "msg-error");
+          convertBtn.disabled = false;
+        }
+      } catch (err) {
+        clearInterval(timer);
+        setProcessProgress(100, "❌ 查询进度失败：" + err.message, "msg-error");
+        convertBtn.disabled = false;
+      }
+    }, 1500);
+  }
+
+  function downloadResult(taskId) {
+    // 服务器返回带 Content-Disposition 的附件，直接跳转即可触发下载
+    const a = document.createElement("a");
+    a.href = "/api/tasks/" + taskId + "/download";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => {
+      setProcessProgress(100, "✅ 处理完成，已开始下载（若未自动保存，请点击页面底部下载提示）");
+      convertBtn.disabled = false;
+    }, 800);
+  }
+})();
+</script>
+</body>
+</html>

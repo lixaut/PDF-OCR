@@ -1,0 +1,18 @@
+[project]
+name = "pdf-ocr"
+version = "0.1.0"
+description = "将不可搜索的扫描版 PDF 转为可搜索的双层 PDF（原图不动 + 不可见文本层）"
+requires-python = ">=3.12"
+dependencies = [
+    "pymupdf",
+    "numpy",
+    "pillow",
+    "paddlepaddle",
+    "paddleocr",
+    "fastapi>=0.141.1",
+    "uvicorn[standard]>=0.52.0",
+    "python-multipart>=0.0.32",
+]
+
+[tool.uv]
+package = false

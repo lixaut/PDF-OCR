@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+*.log
+test_scan.pdf
+out_*.pdf
+web_out.pdf
+minimal_test.pdf
+.git/

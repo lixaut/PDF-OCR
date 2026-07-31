@@ -1,0 +1,32 @@
+# ---- Python / 虚拟环境 ----
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ---- 日志 / 运行时 ----
+*.log
+server.log
+
+# ---- 测试与验证产物（PDF 测试件、输出） ----
+test_*.pdf
+out_*.pdf
+final*.pdf
+opt_*.pdf
+perf_*.pdf
+verify_*.pdf
+minimal_test.pdf
+gpu_wheel/
+
+# ---- 临时下载 / 模型缓存 ----
+gpu_install.log
+*.tmp
+
+# ---- 敏感信息（密钥/环境变量，以防将来添加） ----
+.env
+.env.*
+*.key
+*.pem
+*.p12
